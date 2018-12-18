@@ -1,0 +1,91 @@
+################################################################################
+#
+#   simple docker compose for hyperledger fabric
+#   intended to be used for testing pkcs11 with gbolo/fabric-* docker images
+#
+################################################################################
+
+version: '2'
+
+services:
+
+  peer-base:
+    image: ${FABRIC_PEER_FIXTURE_IMAGE}:${FABRIC_PEER_FIXTURE_TAG}
+    volumes:
+      - /var/run/:/host/var/run/
+      - ${COMPOSE_DIR}/files/config/ca-client-1.0.0.yaml:/etc/hyperledger/fabric/client/fabric-ca-client-config.yaml
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - ${COMPOSE_DIR}/files/config/core-ext-1.1.0.yaml:/etc/hyperledger/fabric/core.yaml:ro
+      - msp_admin_mybank1:/data/msp_admin_mybank1
+      - msp_admin_mybank2:/data/msp_admin_mybank2
+      - msp_admin_securekey:/data/msp_admin_securekey
+      - ${COMPOSE_DIR}/files/bin/entrypoint.sh:/usr/local/bin/entrypoint.sh
+      - adminOrdererOrg1MSP:/data/adminOrdererOrg1MSP
+      - channelArtifacts:/data/channelArtifacts
+      - caBin:/usr/local/ca-bin
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - deployStatus:/tmp/deploy-status
+    environment:
+      # REGULAR PEER DAEMON OPTIONS
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_LOGGING_LEVEL=INFO
+      - CORE_PEER_GOSSIP_USELEADERELECTION=true
+      - CORE_PEER_GOSSIP_PVTDATA_PULLRETRYTHRESHOLD=60s
+      - CORE_PEER_GOSSIP_PVTDATA_TRANSIENTSTOREMAXBLOCKRETENTION=500
+      # TLS OPTIONS FOR SERVER DAEMON
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/data/tls/server_wild_vme_sk_dev.pem
+      - CORE_PEER_TLS_KEY_FILE=/data/tls/server_wild_vme_sk_dev-key.pem
+      - CORE_PEER_TLS_ROOTCERT_FILE=/data/tls/ca_root.pem
+      # CLIENT TLS OPTIONS FOR PEER (setting to server certs because of bug: FAB-7491)
+      - CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/data/tls/ca_root.pem
+      - CORE_PEER_TLS_CLIENTCERT_FILE=/data/tls/client_fabric-dev.pem
+      - CORE_PEER_TLS_CLIENTKEY_FILE=/data/tls/client_fabric-dev-key.pem
+      # LOGGING LEVELS
+      - CORE_LOGGING_PEER=info
+      - CORE_LOGGING_GOSSIP=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=debug
+      - CORE_LOGGING_PEER_GOSSIP=info
+      ## the following setting redirects chaincode container logs to the peer container logs
+      - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      # these are the baseos and ccenv images to use, values set in .env (or .bincc.env)
+      - CORE_CHAINCODE_BUILDER
+      - CORE_CHAINCODE_GOLANG_RUNTIME
+      # enable External SCCs
+      - CORE_CHAINCODE_SYSTEMEXT_ENABLED=true
+      - CORE_CHAINCODE_LOGGING_SHIM=info
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=vme.sk.dev
+      # COUCHDB CONFIG
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=cdbadmin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=secret
+    entrypoint:
+      - /usr/local/bin/entrypoint.sh
+      - peer
+      - node
+      - start
+      # - --peer-defaultchain=false
+
+
+  ca-base:
+    image: ${FABRIC_CA_FIXTURE_IMAGE}:${FABRIC_CA_FIXTURE_TAG}
+    volumes:
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+    environment:
+      - FABRIC_CA_SERVER_DEBUG=false
+      # TLS
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_TLS_CERTFILE=/data/tls/server_wild_vme_sk_dev.pem
+      - FABRIC_CA_SERVER_TLS_KEYFILE=/data/tls/server_wild_vme_sk_dev-key.pem
+
+  couchdb-base:
+    image: ${FABRIC_COUCHDB_FIXTURE_IMAGE}:${FABRIC_COUCHDB_FIXTURE_TAG}
+    environment:
+      - COUCHDB_USER=cdbadmin
+      - COUCHDB_PASSWORD=secret

@@ -1,0 +1,26 @@
+#
+#  Marbles server configuration
+#
+
+#
+http:
+  server:
+    # Bind address and port for the server
+    address: 0.0.0.0:8080
+
+logging:
+  # Log format.
+  format:  "%{level:.4s} %{time:2006-01-02 15:04:05} %{program}[%{pid}]: %{id:05d} %{shortfile} %{shortfunc} %{message}"
+  # Log level. Options are "critical", "error", "warning", "notice", "info", and "debug".
+  level: info
+
+
+fabric_sdk:
+
+  user:
+    id: ${FABRIC_USER_ID}
+    enroll_secret: ${FABRIC_USER_ENROLL_SECRET}
+
+  # Client configuration can be passed to SDK via a separate yaml file, or as a multi-line string.
+  # client_conf_file: ${ADAPTER_HOME}/fabric_sdk.yaml
+

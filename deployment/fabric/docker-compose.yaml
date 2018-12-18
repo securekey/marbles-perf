@@ -1,0 +1,661 @@
+
+version: '2'
+
+# Define networks here ---------------------------------------------------------
+networks:
+
+  # Set the default network to the one created by setup.sh
+  default:
+    external:
+      name: vme.sk.dev
+
+services:
+
+  ca.vme.sk.dev:
+    container_name: fabric-ca
+    extends:
+      file:  defaults.yaml
+      service: ca-base
+    environment:
+      - FABRIC_CA_SERVER_CSR_CN=ca.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_NAME=ca.vme.sk.dev
+    ports:
+      - "7054:7054"
+    entrypoint: ["fabric-ca-server", "start", "-b", "admin:adminpw"]
+
+  ca2.vme.sk.dev:
+    container_name: fabric-ca2
+    extends:
+      file:  defaults.yaml
+      service: ca-base
+    volumes:
+      - ${COMPOSE_DIR}/files/config/fabric-ca/mybank2:/data/config:ro
+    environment:
+      - FABRIC_CA_SERVER_CSR_CN=ca2.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_NAME=ca2.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_KEYFILE=/data/config/ca-key.pem
+      - FABRIC_CA_SERVER_CA_CERTFILE=/data/config/ca-cert.pem
+    ports:
+      - "27054:7054"
+    entrypoint: ["fabric-ca-server", "start", "-b", "admin:adminpw"]
+
+  cask.vme.sk.dev:
+    container_name: fabric-ca-sk
+    extends:
+      file:  defaults.yaml
+      service: ca-base
+    volumes:
+      - ${COMPOSE_DIR}/files/config/fabric-ca/securekey:/data/config:ro
+    environment:
+      - FABRIC_CA_SERVER_CSR_CN=cask.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_NAME=cask.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_KEYFILE=/data/config/ca-key.pem
+      - FABRIC_CA_SERVER_CA_CERTFILE=/data/config/ca-cert.pem
+    ports:
+      - "37054:7054"
+    entrypoint: ["fabric-ca-server", "start", "-b", "admin:adminpw"]
+
+  caOrderer.vme.sk.dev:
+    container_name: fabric-caOrderer
+    extends:
+      file:  defaults.yaml
+      service: ca-base
+    environment:
+      - FABRIC_CA_SERVER_CSR_CN=caOrderer.vme.sk.dev
+      - FABRIC_CA_SERVER_CA_NAME=caOrderer.vme.sk.dev
+    entrypoint: ["fabric-ca-server", "start", "-b", "admin:adminpw"]
+
+  dkr:
+    image: ${DOCKER_IN_DOCKER_IMAGE}:${DOCKER_IN_DOCKER_IMAGE_TAG}
+    container_name: dkr
+    privileged: true
+    working_dir: "/dkr"
+    volumes:
+      - "${COMPOSE_DIR}:/dkr"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ${COMPOSE_DIR}/files/entrypoints/dkr.sh:/usr/local/bin/entrypoint.sh
+      - deployStatus:/tmp/deploy-status
+    # command: docker ps -a
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    environment:
+      - ARCH=$ARCH
+    tty: true
+    depends_on:
+      - ca.vme.sk.dev
+      - ca2.vme.sk.dev
+      - cask.vme.sk.dev
+      - caOrderer.vme.sk.dev
+      - ca-client-register-mybank1
+      - ca-client-register-mybank2
+      - ca-client-register-securekey
+      - caOrderer-client-register
+
+  ca-client-register-mybank1:
+    container_name: fabric-ca-client
+    image: ${FABRIC_CA_FIXTURE_IMAGE}:${FABRIC_CA_FIXTURE_TAG}
+    environment:
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca-ready
+      - ISSUER_VME_MEMBER_ID=mb.vme.securekey.com
+    volumes:
+      - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - ${COMPOSE_DIR}/files/entrypoints/member_registerer.sh:/usr/local/bin/entrypoint.sh
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - msp_admin_mybank1:/etc/hyperledger/fabric-ca-server/msp
+      - deployStatus:/tmp/deploy-status
+    # command: /bin/bash -c 'sleep 3; sh /tmp/register_users.sh ca.vme.sk.dev; touch /tmp/deploy-status/done_ca_registration'
+    entrypoint: ["/usr/local/bin/entrypoint.sh", "ca.vme.sk.dev"]
+    depends_on:
+      - ca.vme.sk.dev
+
+  ca-client-register-mybank2:
+    container_name: fabric-ca-client2
+    image: ${FABRIC_CA_FIXTURE_IMAGE}:${FABRIC_CA_FIXTURE_TAG}
+    environment:
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca2-ready
+      - ISSUER_VME_MEMBER_ID=mybank2.com
+    volumes:
+      - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - ${COMPOSE_DIR}/files/entrypoints/member_registerer.sh:/usr/local/bin/entrypoint.sh
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - msp_admin_mybank2:/etc/hyperledger/fabric-ca-server/msp
+      - deployStatus:/tmp/deploy-status
+    # command: /bin/bash -c 'sleep 3; sh /tmp/register_users.sh ca.vme.sk.dev; touch /tmp/deploy-status/done_ca_registration'
+    entrypoint: ["/usr/local/bin/entrypoint.sh", "ca2.vme.sk.dev"]
+    depends_on:
+      - ca2.vme.sk.dev
+
+  ca-client-register-securekey:
+    container_name: fabric-ca-client-sk
+    image: ${FABRIC_CA_FIXTURE_IMAGE}:${FABRIC_CA_FIXTURE_TAG}
+    environment:
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca-sk-ready
+      - ISSUER_VME_MEMBER_ID=verified.me
+    volumes:
+      - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - ${COMPOSE_DIR}/files/entrypoints/member_registerer.sh:/usr/local/bin/entrypoint.sh
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - msp_admin_securekey:/etc/hyperledger/fabric-ca-server/msp
+      - deployStatus:/tmp/deploy-status
+    # command: /bin/bash -c 'sleep 3; sh /tmp/register_users.sh ca.vme.sk.dev; touch /tmp/deploy-status/done_ca_registration'
+    entrypoint: ["/usr/local/bin/entrypoint.sh", "cask.vme.sk.dev"]
+    depends_on:
+      - cask.vme.sk.dev
+
+  caOrderer-client-register:
+    container_name: fabric-ca-clientOrderer
+    image: ${FABRIC_CA_FIXTURE_IMAGE}:${FABRIC_CA_FIXTURE_TAG}
+    environment:
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-caOrderer-ready
+    volumes:
+      - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - ${COMPOSE_DIR}/files/entrypoints/member_registerer.sh:/usr/local/bin/entrypoint.sh
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - adminOrdererOrg1MSP:/etc/hyperledger/fabric-ca-server/msp
+      - caBin:/usr/local/bin
+      - deployStatus:/tmp/deploy-status
+    # command: /bin/bash -c 'sleep 3; sh /tmp/register_users.sh caOrderer.vme.sk.dev; touch /tmp/deploy-status/done_orderer_registration'
+    entrypoint: ["/usr/local/bin/entrypoint.sh", "caOrderer.vme.sk.dev"]
+    depends_on:
+      - caOrderer.vme.sk.dev
+
+  fabric-tools:
+    container_name: fabric-tools
+    image: ${FABRIC_TOOLS_FIXTURE_IMAGE}:${FABRIC_TOOLS_FIXTURE_TAG}
+    environment:
+      # enable debugging (keeps container running after executing script)
+      DEBUG_ENABLED: ${DEBUG_ENABLED}
+      FABRIC_CFG_PATH: /etc/hyperledger/fabric
+      CORE_PEER_BCCSP_DEFAULT: SW
+      CORE_VM_ENDPOINT: unix:///host/var/run/docker.sock
+      CORE_LOGGING_LEVEL: DEBUG
+      CORE_PEER_ID: cli
+      CORE_PEER_LOCALMSPID: Org1MSP
+      CORE_PEER_TLS_ENABLED: "true"
+      CORE_PEER_TLS_CERT_FILE: /data/tls/server_wild_vme_sk_dev.pem
+      CORE_PEER_TLS_KEY_FILE: /data/tls/server_wild_vme_sk_dev-key.pem
+      CORE_PEER_TLS_ROOTCERT_FILE: /data/tls/ca_root.pem
+      # use files to signal container readiness
+      WAIT_SIGNAL_FILES: /tmp/deploy-status/started_peer9c
+      #
+      # vme dev/local/personal deployment use only, a domain name prefix override for
+      # EDS whitelist for domain names in pattern of {prefix}-something.onetap.ca
+      # where prefix is different per environment
+      #
+      EDSSNAP_DNS_PREFIX_OVERRIDE: ${VME_DNS_PREFIX}
+    volumes:
+      - orderer0MSP:/data/orderer0MSP
+      - msp_admin_mybank1:/data/msp_admin_mybank1
+      - msp_admin_mybank2:/data/msp_admin_mybank2
+      - msp_admin_securekey:/data/msp_admin_securekey
+      - adminOrdererOrg1MSP:/data/adminOrdererOrg1MSP
+      - channelArtifacts:/data/channel-artifacts
+      - ${COMPOSE_DIR}/files/config/configtx-1.0.0.yaml:/data/configtx.yaml:ro
+      - ${COMPOSE_DIR}/files/config/fabric-cli-1.0.0.yaml:/data/fabric-cli.yaml:ro
+      - ${COMPOSE_DIR}/files/config/core-1.0.0.yaml:/etc/hyperledger/fabric/core.yaml:ro
+      - ${COMPOSE_DIR}/files/bin/create_channel_tx.sh:/data/create_channel_tx.sh
+      - ${COMPOSE_DIR}/files/bin/vme-setup.sh:/data/vme-setup.sh
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - ${CC_BUILD_DIR}/chaincodes:/opt/gopath/src/gerrit.securekey.com/user-cc/chaincodes:ro
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - deployStatus:/tmp/deploy-status
+    command: /bin/bash -c './data/vme-setup.sh'
+    #command: /bin/bash -c 'sleep 3600'
+    # command: /bin/bash
+    # stdin_open: true
+    # tty: true
+
+  peer0.vme.sk.dev:
+    container_name: fabric-peer0
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer0:testing@ca.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer0
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer0.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank1
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer0.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer0.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.vme.sk.dev:7051
+      # - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank1
+      # - CORE_PEER_GOSSIP_ORGLEADER=true
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer0.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_orderer
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer0.vme.sk.dev:5984
+    ports:
+      - 7051:7051
+      - 7053:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer0.vme.sk.dev
+
+  peer0b.vme.sk.dev:
+    container_name: fabric-peer0b
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      # LOG LEVEL
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer0b:testing@ca.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer0b
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer0b.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank1
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer0b.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer0b.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0b.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank1
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer0b.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer0
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer0b.vme.sk.dev:5984
+    ports:
+      - 17051:7051
+      - 17053:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer0b.vme.sk.dev
+      - peer0.vme.sk.dev
+
+  peer0c.vme.sk.dev:
+    container_name: fabric-peer0c
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      # LOG LEVEL
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer0c:testing@ca.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer0c
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer0c.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank1
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer0c.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer0c.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0c.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank1
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer0c.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer0
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer0c.vme.sk.dev:5984
+    ports:
+      - 27051:7051
+      - 27053:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer0c.vme.sk.dev
+      - peer0.vme.sk.dev
+
+  peer1.vme.sk.dev:
+    container_name: fabric-peer1
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer1:testing@ca2.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer1
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer1.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank2
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer1.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer1.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank2
+      # - CORE_PEER_GOSSIP_ORGLEADER=true
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer1.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_orderer
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer1.vme.sk.dev:5984
+    ports:
+      - 7056:7051
+      - 7058:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer1.vme.sk.dev
+
+  peer1b.vme.sk.dev:
+    container_name: fabric-peer1b
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer1b:testing@ca2.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer1b
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer1b.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank2
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer1b.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer1b.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1b.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank2
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer1b.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer1
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer1b.vme.sk.dev:5984
+    ports:
+      - 17056:7051
+      - 17058:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer1b.vme.sk.dev
+      - peer1.vme.sk.dev
+
+  peer1c.vme.sk.dev:
+    container_name: fabric-peer1c
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer1c:testing@ca2.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer1c
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer1c.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_mybank2
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer1c.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer1c.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1c.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=mybank2
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer1c.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer1
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer1c.vme.sk.dev:5984
+    ports:
+      - 27056:7051
+      - 27058:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer1c.vme.sk.dev
+      - peer1.vme.sk.dev
+
+  peer9.vme.sk.dev:
+    container_name: fabric-peer9
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer9:testing@cask.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer9
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer9.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_securekey
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer9.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer9.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer9.vme.sk.dev:7051
+      # - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=securekey
+      # - CORE_PEER_GOSSIP_ORGLEADER=true
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer9.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_orderer
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer9.vme.sk.dev:5984
+    ports:
+      - 7091:7051
+      - 7093:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer9.vme.sk.dev
+
+  peer9b.vme.sk.dev:
+    container_name: fabric-peer9b
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer9b:testing@cask.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer9b
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer9b.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_securekey
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer9b.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer9b.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer9b.vme.sk.dev:7051
+      # - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=securekey
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer9.vme.sk.dev:7051
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer9b.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer9
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer9b.vme.sk.dev:5984
+    ports:
+      - 17091:7051
+      - 17093:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer9b.vme.sk.dev
+      - peer9.vme.sk.dev
+
+  peer9c.vme.sk.dev:
+    container_name: fabric-peer9c
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      - CORE_LOGGING_LEVEL=INFO
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_URL=https://peer9c:testing@cask.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=peer9c
+      - FABRIC_CA_CLIENT_CSR_HOSTS=peer9c.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      - ADMIN_MSP_DIR=/data/msp_admin_securekey
+      # DAEMON SPECIFIC OPTIONS
+      - CORE_PEER_ID=peer9c.vme.sk.dev
+      - CORE_PEER_ADDRESS=peer9c.vme.sk.dev:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer9c.vme.sk.dev:7051
+      # - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.vme.sk.dev:7051
+      - CORE_PEER_LOCALMSPID=securekey
+      # - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer9.vme.sk.dev:7051
+      # NEW FOR SK
+      - FABRIC_CA_CLIENT_HOME=/etc/hyperledger/fabric/client
+      - FABRIC_CA_CLIENT_MSPDIR=/etc/hyperledger/fabric/msp
+      - CORE_PEER_EVENTS_ADDRESS=peer9c.vme.sk.dev:7053
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/started_peer9
+      # couchdb host
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=cdb-peer9c.vme.sk.dev:5984
+    ports:
+      - 27091:7051
+      - 27093:7053
+    depends_on:
+      - orderer0.vme.sk.dev
+      - cdb-peer9c.vme.sk.dev
+      - peer9.vme.sk.dev
+
+  cdb-peer0.vme.sk.dev:
+    container_name: cdb-peer0
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer0b.vme.sk.dev:
+    container_name: cdb-peer0b
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer0c.vme.sk.dev:
+    container_name: cdb-peer0c
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer1.vme.sk.dev:
+    container_name: cdb-peer1
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer1b.vme.sk.dev:
+    container_name: cdb-peer1b
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer1c.vme.sk.dev:
+    container_name: cdb-peer1c
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer9.vme.sk.dev:
+    container_name: cdb-peer9
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer9b.vme.sk.dev:
+    container_name: cdb-peer9b
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  cdb-peer9c.vme.sk.dev:
+    container_name: cdb-peer9c
+    extends:
+      file:  defaults.yaml
+      service: couchdb-base
+
+  orderer0.vme.sk.dev:
+    container_name: fabric-orderer0
+    image: ${FABRIC_ORDERER_FIXTURE_IMAGE}:${FABRIC_ORDERER_FIXTURE_TAG}
+    volumes:
+      - ${COMPOSE_DIR}/files/config/orderer-1.0.0.yaml:/etc/hyperledger/fabric/orderer.yaml:ro
+      - ${COMPOSE_DIR}/files/config/configtx-1.0.0.yaml:/etc/hyperledger/fabric/configtx.yaml:ro
+      - ${COMPOSE_DIR}/files/config/ca-client-1.0.0-ou-fabric.yaml:/etc/hyperledger/fabric/client/fabric-ca-client-config.yaml
+      - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
+      - ${COMPOSE_DIR}/files/bin/entrypoint.sh:/usr/local/bin/entrypoint.sh
+      - msp_admin_mybank1:/data/msp_admin_mybank1
+      - msp_admin_mybank2:/data/msp_admin_mybank2
+      - msp_admin_securekey:/data/msp_admin_securekey
+      - adminOrdererOrg1MSP:/data/adminOrdererOrg1MSP
+      - orderer0MSP:/data/orderer0MSP
+      - caBin:/usr/local/ca-bin
+      - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
+      - deployStatus:/tmp/deploy-status
+    environment:
+      # FOR ENROLLMENT
+      - FABRIC_CA_CLIENT_MSPDIR=/data/orderer0MSP
+      - FABRIC_CA_CLIENT_URL=https://orderer0:testing@caOrderer.vme.sk.dev:7054
+      - FABRIC_CA_CLIENT_CSR_CN=orderer0
+      - FABRIC_CA_CLIENT_CSR_HOSTS=orderer0.vme.sk.dev
+      - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
+      # DAEMON SPECIFIC OPTIONS
+      - ORDERER_GENERAL_LOCALMSPDIR=/data/orderer0MSP
+      - ORDERER_GENERAL_LOGLEVEL=debug
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_GENESISMETHOD=provisional
+      - ORDERER_GENERAL_GENESISPROFILE=VmeOrdererGenesis
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      # TLS OPTIONS
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/data/tls/server_wild_vme_sk_dev.pem
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/data/tls/server_wild_vme_sk_dev-key.pem
+      # THIS IS BROKEN: * 'General.TLS.RootCAs': source data must be an array or slice, got string
+      # - ORDERER_GENERAL_TLS_ROOTCAS=/data/tls/ca_root.pem
+      #
+      # use files to signal container readiness
+      - WAIT_SIGNAL_FILES=/tmp/deploy-status/done_ca_registration
+    # command: /bin/bash -c './usr/local/bin/entrypoint.sh orderer start'
+    entrypoint:
+      # - tail
+      # - -f
+      # - /dev/null
+      - /usr/local/bin/entrypoint.sh
+      - orderer
+      - start
+    ports:
+      - 7050:7050
+    depends_on:
+      - caOrderer-client-register
+
+volumes:
+  orderer0MSP:
+  msp_admin_mybank1:
+  msp_admin_mybank2:
+  msp_admin_securekey:
+  adminOrdererOrg1MSP:
+  channelArtifacts:
+  caBin:
+  snapsMSP:
+  deployStatus:

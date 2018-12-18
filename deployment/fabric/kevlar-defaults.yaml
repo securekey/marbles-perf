@@ -1,0 +1,30 @@
+################################################################################
+#
+#   simple docker compose for hyperledger fabric
+#   intended to be used for testing pkcs11 with gbolo/fabric-* docker images
+#
+################################################################################
+
+version: '2'
+
+services:
+
+  kevlar-peer-base:
+    extends:
+      file:  defaults.yaml
+      service: peer-base
+    environment:
+      #
+      # kevalar settings
+      #
+      - CORE_LEDGER_ROLES=endorser
+      - CORE_LEDGER_BLOCKCHAIN_BLOCKSTORAGE=CouchDB
+      - CORE_LEDGER_BLOCKCHAIN_PVTDATASTORAGE=CouchDB
+      - CORE_LEDGER_BLOCKCHAIN_CONFIGHISTORYSTORAGE=CouchDB
+      - CORE_LEDGER_BLOCKCHAIN_TRANSIENTSTORAGE=Memory
+      - CORE_LEDGER_BLOCKCHAIN_KVCACHENONDURABLESIZE=18000
+      - CORE_LEDGER_BLOCKCHAIN_KVCACHEBLOCKSTOLIVE=45
+      - CORE_LEDGER_BLOCKCHAIN_KVCACHESIZE=16000
+      - CORE_LEDGER_BLOCKCHAIN_PVTDATACACHESIZE=5
+      - CORE_LEDGER_BLOCKCHAIN_BLOCKCACHESIZE=50
+

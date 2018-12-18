@@ -1,0 +1,377 @@
+#   ___                           _  __
+#  / __| ___  __  _  _  _ _  ___ | |/ / ___  _  _
+#  \__ \/ -_)/ _|| || || '_|/ -_)| ' < / -_)| || |
+#  |___/\___|\__| \_,_||_|  \___||_|\_\\___| \_, |
+#  SecureKey Technologies Inc.                |__/
+#
+
+# SK LOCAL VME DEV DOCKER COMPOSE ENVIRONMENT
+# FOR HELP WITH THIS COMPOSE DEPLOYMENT PLEASE CONTACT:
+# Service Engineering <service.engineering@securekey.com>
+
+version: '2.1'
+
+# Define networks here ---------------------------------------------------------
+networks:
+
+  # Set the default network to the one created by setup.sh
+  default:
+    external:
+      name: vme.sk.dev
+
+# Define containers here -------------------------------------------------------
+services:
+
+  # web service
+  marbles-perf.vme.sk.dev:
+    container_name: marbles-perf
+    image: marbles-perf:${MARBLES_PERF_TAG}
+    user: root
+    volumes:
+      - ./volumes/tls:/opt/securekey/tls:ro
+      - ./volumes/tls/ca_root.pem:/usr/local/share/ca-certificates/ca_root.crt:ro
+    ports:
+      - 8080:8080
+    environment:
+      GRPC_GO_LOG_SEVERITY_LEVEL: WARN
+      GRPC_GO_LOG_VERBOSITY_LEVEL: 2
+      LOGGING_LEVEL: debug
+      LOGGING_FORMAT: '%{color}%{time:2006-01-02 15:04:05} %{module}-%{pid} %{callpath} [%{level:.4s}] %{message}%{color:reset}'
+      FABRIC_SDK_STORE_PATH: /opt/fabricsdk_store
+      FABRIC_SDK_EVENTS_TIMEOUT_SECONDS: 90
+      FABRIC_ORGANIZATION: mybank1
+      FABRIC_SDK_USER_ID: adapter.mybank.com
+      FABRIC_SDK_USER_ENROLL_SECRET: testing
+      #FABRIC_CHANNEL: dlbp-mybank1
+      CHAINCODE_EVENT_DELAY_MILLISECONDS: "1000"
+      FABRIC_TLS_CA_ROOT_CERT: /opt/securekey/tls/ca_root.pem
+      FABRIC_TLS_CLIENT_CERT: /opt/securekey/tls/client_fabric-dev.pem
+      FABRIC_TLS_CLIENT_KEY: /opt/securekey/tls/client_fabric-dev-key.pem
+      #FABRIC_SDK_INVOKE_MAX_ATTEMPTS: 7
+      #FABRIC_SDK_QUERY_MAX_ATTEMPTS: 7
+      #
+      # --------------------------------------------------------------------
+      # The entire fabric sdk client config as multi-line environment below
+      # --------------------------------------------------------------------
+      #
+      FABRIC_SDK_CLIENT_CONFIGURATION: |
+        name: "vme-network"
+        description: "Verified.Me Hyperledger Network"
+        version: 1.0.0
+        client:
+          organization: $$FABRIC_ORGANIZATION
+          logging:
+            level: info
+        # Global configuration for peer, event service and orderer timeouts
+          peer:
+            timeout:
+              connection: 30s
+              response: 180s
+              discovery:
+                # Expiry period for discovery service greylist filter
+                # The channel client will greylist peers that are found to be offline
+                # to prevent re-selecting them in subsequent retries.
+                # This interval will define how long a peer is greylisted
+                greylistExpiry: 5s
+          eventService:
+            # Event service type (deliver|eventhub) - default: deliver
+            # NOTE: This is temporary until the SDK starts making use of channel capabilities
+            type: deliver
+            timeout:
+              connection: 30s
+              registrationResponse: 10s
+            balancer: Random
+            blockHeightLagThreshold: 5
+            reconnectBlockHeightLagThreshold: 10
+            peerMonitorPeriod: 3s
+          orderer:
+            timeout:
+              connection: 30s
+              response: 30s
+          global:
+            timeout:
+              query: 180s
+              execute: 180s
+              resmgmt: 180s
+            cache:
+              connectionIdle: 30s
+              eventServiceIdle: 2m
+              channelConfig: 60s
+              channelMembership: 30s
+
+          # Needed to load users crypto keys and certs.
+          credentialStore:
+            path: $$FABRIC_SDK_STORE_PATH/msp/signcerts
+            cryptoStore:
+              path: $$FABRIC_SDK_STORE_PATH/msp
+
+          # BCCSP config for the client. Used by GO SDK.
+          BCCSP:
+            security:
+              enabled: true
+              default:
+                provider: "SW"
+              hashAlgorithm: "SHA2"
+              softVerify: true
+              ephemeral: false
+              level: 256
+
+          tlsCerts:
+            # [Optional]. Use system certificate pool when connecting to peers, orderers (for negotiating TLS) Default: false
+            systemCertPool: false
+
+            # [Optional]. Client key and cert for TLS handshake with peers and orderers
+            client:
+             key:
+               path: $$FABRIC_TLS_CLIENT_KEY
+             cert:
+               path: $$FABRIC_TLS_CLIENT_CERT
+
+        channels:
+          # name of the channel
+          consortium:
+            orderers:
+              - orderer0.vme.sk.dev
+            peers:
+              peer0.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer0b.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer0c.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer1.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer1b.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer1c.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer9.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer9b.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+              peer9c.vme.sk.dev:
+                endorsingPeer: true
+                chaincodeQuery: true
+                ledgerQuery: true
+                eventSource: true
+            # [Optional]. what chaincodes are expected to exist on this channel? The application can use
+            # this information to validate that the target peers are in the expected state by comparing
+            # this list with the query results of getInstalledChaincodes() and getInstantiatedChaincodes()
+            #chaincodes:
+            #  # the format follows the "canonical name" of chaincodes by fabric code
+            #  - example02:v1
+            #  - marbles:1.0
+        #
+        # list of participating organizations in this network
+        #
+        organizations:
+          mybank1:
+            mspid: mybank1
+            cryptoPath:  $$FABRIC_SDK_STORE_PATH/msp
+            peers:
+              - peer0.vme.sk.dev
+              - peer0b.vme.sk.dev
+              - peer0c.vme.sk.dev
+            certificateAuthorities:
+              - ca.vme.sk.dev
+          #
+          #  Add other Orgs if tx delegation is disabled
+          #
+          mybank2:
+            mspid: mybank2
+            cryptoPath:  $$FABRIC_SDK_STORE_PATH/msp
+            peers:
+              - peer1.vme.sk.dev
+              - peer1b.vme.sk.dev
+              - peer1c.vme.sk.dev
+            certificateAuthorities:
+              - ca2.vme.sk.dev
+
+          securekey:
+            mspid: securekey
+            cryptoPath:  $$FABRIC_SDK_STORE_PATH/msp
+            peers:
+              - peer9.vme.sk.dev
+              - peer9b.vme.sk.dev
+              - peer9c.vme.sk.dev
+            certificateAuthorities:
+              - cask.vme.sk.dev
+
+        orderers:
+          orderer0.vme.sk.dev:
+            url: grpcs://orderer0.vme.sk.dev:7050
+            tlsCACerts:
+              # Certificate location absolute path
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+        #
+        # List of peers to send various requests to, including endorsement, query
+        # and event listener registration.
+        #
+        peers:
+          peer0.vme.sk.dev:
+            url: grpcs://peer0.vme.sk.dev:7051
+            eventUrl: grpcs://peer0.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer0b.vme.sk.dev:
+            url: grpcs://peer0b.vme.sk.dev:7051
+            eventUrl: grpcs://peer0b.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer0c.vme.sk.dev:
+            url: grpcs://peer0c.vme.sk.dev:7051
+            eventUrl: grpcs://peer0c.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer1.vme.sk.dev:
+            url: grpcs://peer1.vme.sk.dev:7051
+            eventUrl: grpcs://peer1.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer1b.vme.sk.dev:
+            url: grpcs://peer1b.vme.sk.dev:7051
+            eventUrl: grpcs://peer1b.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer1c.vme.sk.dev:
+            url: grpcs://peer1c.vme.sk.dev:7051
+            eventUrl: grpcs://peer1c.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer9.vme.sk.dev:
+            url: grpcs://peer9.vme.sk.dev:7051
+            eventUrl: grpcs://peer9.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer9b.vme.sk.dev:
+            url: grpcs://peer9b.vme.sk.dev:7051
+            eventUrl: grpcs://peer9b.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+          peer9c.vme.sk.dev:
+            url: grpcs://peer9c.vme.sk.dev:7051
+            eventUrl: grpcs://peer9c.vme.sk.dev:7053
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+
+        entityMatchers:
+          peer:
+            - pattern: peer0.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer0.vme.sk.dev
+              mappedHost: peer0.vme.sk.dev
+
+            - pattern: peer0b.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer0b.vme.sk.dev
+              mappedHost: peer0b.vme.sk.dev
+
+            - pattern: peer0c.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer0c.vme.sk.dev
+              mappedHost: peer0c.vme.sk.dev
+
+            - pattern: peer1.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer1.vme.sk.dev
+              mappedHost: peer1.vme.sk.dev
+
+            - pattern: peer1b.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer1b.vme.sk.dev
+              mappedHost: peer1b.vme.sk.dev
+
+            - pattern: peer1c.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer1c.vme.sk.dev
+              mappedHost: peer1c.vme.sk.dev
+
+            - pattern: peer9.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer9.vme.sk.dev
+              mappedHost: peer9.vme.sk.dev
+
+            - pattern: peer9b.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer9b.vme.sk.dev
+              mappedHost: peer9b.vme.sk.dev
+
+            - pattern: peer9c.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: peer9c.vme.sk.dev
+              mappedHost: peer9c.vme.sk.dev
+
+          orderer:
+            - pattern: (\w+).vme.sk.dev
+              urlSubstitutionExp: orderer0.vme.sk.dev:7050
+              sslTargetOverrideUrlSubstitutionExp: orderer0.vme.sk.dev
+              mappedHost: orderer0.vme.sk.dev
+
+          certificateAuthority:
+            - pattern: ca.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: ca.vme.sk.dev
+              mappedHost: ca.vme.sk.dev
+
+            - pattern: ca2.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: ca2.vme.sk.dev
+              mappedHost: ca2.vme.sk.dev
+
+            - pattern: cask.vme.sk.dev
+              urlSubstitutionExp:
+              sslTargetOverrideUrlSubstitutionExp: cask.vme.sk.dev
+              mappedHost: cask.vme.sk.dev
+
+        #
+        # Fabric-CA is a special kind of Certificate Authority provided by Hyperledger Fabric which allows
+        # certificate management to be done via REST APIs. Application may choose to use a standard
+        # Certificate Authority instead of Fabric-CA, in which case this section would not be specified.
+        #
+        certificateAuthorities:
+          ca.vme.sk.dev:
+            url: https://ca.vme.sk.dev:7054
+            httpOptions:
+              verify: true
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+
+          ca2.vme.sk.dev:
+            url: https://ca2.vme.sk.dev:7054
+            httpOptions:
+              verify: true
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+
+          cask.vme.sk.dev:
+            url: https://cask.vme.sk.dev:7054
+            httpOptions:
+              verify: true
+            tlsCACerts:
+              path: $$FABRIC_TLS_CA_ROOT_CERT
+
+
