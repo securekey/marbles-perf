@@ -16,23 +16,13 @@ make docker
 # Setting Up Runtime Environment Locally
 Follow these steps to set up a complete environment for testing locally.
 
-## Start Fabric Network (with stock fabric)
+## Start Fabric Network
 Use commands below to spin up a Hyperledger Fabric network with 3 Organizations with a total of 9 peers with Marbles chancode deployed.
 
 ```
 docker stop $(docker ps -q) && \
 make fabric-up
 ```
-
-
-## Start Alternate Fabric (Kevlar instead of stock)
-As an alternative to stock Fabric, you could start Kevlar Fabric with these commands.
-
-```
-docker stop $(docker ps -q) && make kevlar-up
-```
-
-Note that you will need to have access to SecureKey private docker repository to run Kevlar.
 
 
 ## Start marbles-perf web service
@@ -149,6 +139,8 @@ The header comment section of the script provides detailed description on its us
 
 ```
 $ export MARBLE_APP_SERVERS="http://marbles1.example.com http://marbles2.example.com http://marbles3.example.com"
+
+$ export MARBLE_POLL_INTERVAL=60
 
 # run 500 threads, 50 iterations, 30 bytes extra data
 $ ./start_load.sh 500 50 30

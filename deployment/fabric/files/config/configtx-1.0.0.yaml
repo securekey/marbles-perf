@@ -437,7 +437,7 @@ Channel: &ChannelDefaults
 ################################################################################
 Profiles:
 
-    VmeOrdererGenesis:
+    MPerfOrdererGenesis:
         <<: *ChannelDefaults
         Orderer:
             <<: *OrdererDefaults
@@ -449,7 +449,7 @@ Profiles:
                           Type: Signature
                           Rule: "OR('OrdererMSP.member')"
         Consortiums:
-            VmeConsortium:
+            MPerfConsortium:
                 Organizations:
                     - <<: *mybank1
                       Policies:
@@ -495,8 +495,8 @@ Profiles:
                               Type: Signature
                               Rule: "OR('securekey.member')"
 
-    VmeConsortiumChannel:
-        Consortium: VmeConsortium
+    MPerfConsortiumChannel:
+        Consortium: MPerfConsortium
         Application:
             <<: *ApplicationDefaults
             # configdata policies apply to configuration data in ledger

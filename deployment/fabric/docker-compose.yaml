@@ -1,3 +1,21 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+# http:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
 
 version: '2'
 
@@ -96,7 +114,6 @@ services:
     environment:
       - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
       - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca-ready
-      - ISSUER_VME_MEMBER_ID=mb.vme.securekey.com
     volumes:
       - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
       - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
@@ -115,7 +132,6 @@ services:
     environment:
       - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
       - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca2-ready
-      - ISSUER_VME_MEMBER_ID=mybank2.com
     volumes:
       - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
       - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
@@ -134,7 +150,6 @@ services:
     environment:
       - FABRIC_CA_CLIENT_TLS_CERTFILES=/data/tls/ca_root.pem
       - WAIT_SIGNAL_FILES=/tmp/deploy-status/fabric-ca-sk-ready
-      - ISSUER_VME_MEMBER_ID=verified.me
     volumes:
       - ${COMPOSE_DIR}/files/bin/register_users.sh:/tmp/register_users.sh
       - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
@@ -184,12 +199,6 @@ services:
       CORE_PEER_TLS_ROOTCERT_FILE: /data/tls/ca_root.pem
       # use files to signal container readiness
       WAIT_SIGNAL_FILES: /tmp/deploy-status/started_peer9c
-      #
-      # vme dev/local/personal deployment use only, a domain name prefix override for
-      # EDS whitelist for domain names in pattern of {prefix}-something.onetap.ca
-      # where prefix is different per environment
-      #
-      EDSSNAP_DNS_PREFIX_OVERRIDE: ${VME_DNS_PREFIX}
     volumes:
       - orderer0MSP:/data/orderer0MSP
       - msp_admin_mybank1:/data/msp_admin_mybank1
@@ -201,12 +210,12 @@ services:
       - ${COMPOSE_DIR}/files/config/fabric-cli-1.0.0.yaml:/data/fabric-cli.yaml:ro
       - ${COMPOSE_DIR}/files/config/core-1.0.0.yaml:/etc/hyperledger/fabric/core.yaml:ro
       - ${COMPOSE_DIR}/files/bin/create_channel_tx.sh:/data/create_channel_tx.sh
-      - ${COMPOSE_DIR}/files/bin/vme-setup.sh:/data/vme-setup.sh
+      - ${COMPOSE_DIR}/files/bin/mperf-setup.sh:/data/mperf-setup.sh
       - ${COMPOSE_DIR}/files/tls/certs:/data/tls:ro
       - ${CC_BUILD_DIR}/chaincodes:/opt/gopath/src/gerrit.securekey.com/user-cc/chaincodes:ro
       - ${COMPOSE_DIR}/files/bin/wait-for-files.sh:/usr/local/bin/wait-for-files.sh
       - deployStatus:/tmp/deploy-status
-    command: /bin/bash -c './data/vme-setup.sh'
+    command: /bin/bash -c './data/mperf-setup.sh'
     #command: /bin/bash -c 'sleep 3600'
     # command: /bin/bash
     # stdin_open: true
@@ -625,7 +634,7 @@ services:
       - ORDERER_GENERAL_LOGLEVEL=debug
       - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
       - ORDERER_GENERAL_GENESISMETHOD=provisional
-      - ORDERER_GENERAL_GENESISPROFILE=VmeOrdererGenesis
+      - ORDERER_GENERAL_GENESISPROFILE=MPerfOrdererGenesis
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
       # TLS OPTIONS
       - ORDERER_GENERAL_TLS_ENABLED=true
