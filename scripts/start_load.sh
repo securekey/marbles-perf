@@ -10,13 +10,9 @@
 #
 #  Envs:
 #    MARBLE_APP_SERVERS - optional, a space-separated list of base server URLs to participate in the run
-#                         if more than 1 server is provided, all servers except for the last one
-#                         in the list will run 15 more iterations than the specified value of iterations.
-#                         This is to garantee the load of the overall system for the duration of entire run of
-#                         the last server so that the average transfer time reported by the last server, is
-#                         the average under a consistent load concurrent threads = concurrency x number of servers.
 #                         If this environment is not set, http://localhost:8080 will be used.
 #
+#    MARBLE_POLL_INTERVAL - optional, how often do we poll server for results in seconds, default is 60
 #
 
 concurrency=$1
@@ -24,6 +20,7 @@ iterations=${2:-50}
 extraDataLength=${3:-20}
 
 server_list=${MARBLE_APP_SERVERS:-"http://localhost:8080"}
+poll_interval=${MARBLE_POLL_INTERVAL:-60}
 
 if [ -z "$concurrency" ] ; then
     echo missing concurrency
@@ -31,23 +28,12 @@ if [ -z "$concurrency" ] ; then
 fi
 
 tmp_request_file=/tmp/marbles_request_$$.json
-tmp_load_file=/tmp/marbles_load_$$.json
-
-let load_iterations=$iterations+15
-
-cat <<EOF > $tmp_load_file
-    {"concurrency":$concurrency, "iterations":$load_iterations, "clearMarbles":false, "extraDataLength":$extraDataLength}
-EOF
 
 cat <<END_REQUEST > $tmp_request_file
     {"concurrency":$concurrency, "iterations":$iterations, "clearMarbles":false, "extraDataLength":$extraDataLength}
 END_REQUEST
 
 echo $(date) start new test ...
-
-echo .
-echo load parameters:
-cat $tmp_load_file
 
 echo .
 echo test parameters:
@@ -80,16 +66,8 @@ echo
 
 # initiate batch runs
 #
-let request_count=0
 for server in $server_list ; do
-    let request_count=request_count+1
-    if [ $request_count == ${#servers[*]} ] ; then
-        # last server
-        request_file=$tmp_request_file
-    else
-        request_file=$tmp_load_file
-    fi
-
+    request_file=$tmp_request_file
     echo curl -q -X POST -d @$request_file ${server}/batch_run
     resp=$( curl -q -X POST -d @$request_file ${server}/batch_run 2> /dev/null )
     curl_exit_code=$?
@@ -111,15 +89,22 @@ done
 #
 batch_ids=( $BATCH_ID_LIST)
 declare -a batch_results
-for ix in ${!batch_ids[*]} ; do
-    batch_results[${ix}]=""
-done
+
+# total number of successful transfers across all batch runs
+let transfer_count=0
+
+# total number of seconds spent on successful transfers
+let transfer_seconds=0
+
+echo
+echo batch runs initiated, will poll server for results every $poll_interval seconds...
+echo
 
 #
 # poll server until all batch runs are done
 #
 while [ 0 ] ; do
-    sleep 60
+    sleep $poll_interval
     echo
     echo $(date) poll server for results ...
     echo
@@ -138,22 +123,63 @@ while [ 0 ] ; do
         fi
     done
     if [ $complete_count == ${#batch_ids[*]} ] ; then
-        echo ALL batch runs complete:
-        for result in "${batch_results[@]}" ; do
-            echo
-            echo $result
-            echo
-        done
         break
     fi
     echo
-    echo $(date) progress: $complete_count out of ${#batch_ids[*]} servers completed, will check again in 60 seconds
+    echo $(date) progress: $complete_count out of ${#batch_ids[*]} servers completed, will check again in $poll_interval seconds
     echo
 done
 
 
+#
+# complete - clean up temp files and marbles
+#
+
+rm -f $tmp_request_file
+
+#
+# clear marbles from system
+echo
+echo
+echo All done, clearing all existing marbles in system ...
+curl -s -X POST ${servers[0]}/clear_marbles >/dev/null 2>&1 &
+echo
+echo
 
 
+#
+# display results
+#
+echo ALL batch runs complete:
+for result in "${batch_results[@]}" ; do
+    echo
+    echo $result
+    echo
+    if [ $(echo ${result} | grep -c totalSuccesses) -gt 0 ] ; then
+            let successes=$(echo ${result} | tr ',' '\n' | awk -v FS=: '/totalSuccesses/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
+            let successSecs=$(echo ${result} | tr ',' '\n' | awk -v FS=: '/totalSuccessSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
+            let transfer_seconds+=$successSecs
+            let transfer_count+=$successes
+    fi
+done
+
+echo
+echo
+echo Performance Summary:
+echo
+echo    Combined total number of transfers: $transfer_count
+echo    Total time in seconds on transfers: $transfer_seconds
+echo
+if [ $transfer_count -gt 0 ] ; then
+   echo    Combined average time in seconds per transfer: $( echo "scale=3; $transfer_seconds/$transfer_count" | bc ) 
+   echo
+   min_transfer_time=$( echo ${batch_results[@]} | tr ',' '\n' | awk -v FS=: '/minTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | head -1)
+   max_transfer_time=$( echo ${batch_results[@]} | tr ',' '\n' | awk -v FS=: '/maxTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | tail -1)
+   echo min transfer time in seconds: $min_transfer_time
+   echo max transfer time in seconds: $max_transfer_time
+   echo
+   echo
+fi
 
 
 
