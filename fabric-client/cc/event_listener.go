@@ -53,7 +53,7 @@ type EventListenerImpl struct {
 	// data will be available at more peers already by the time notitfication is received
 	NotificationDelayMilliseconds int
 
-	vmefc        fc.Client
+	fabClient    fc.Client
 	chClient     *channel.Client
 	registration fab.Registration
 	notifier     <-chan *fab.CCEvent
@@ -64,7 +64,7 @@ type EventListenerImpl struct {
 func (t *EventListenerImpl) Register(eventID string) error {
 	var err error
 	if t.chClient == nil {
-		t.chClient, err = t.vmefc.ChannelClient(t.ChannelID)
+		t.chClient, err = t.fabClient.ChannelClient(t.ChannelID)
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (t *EventListenerImpl) BlockWait(timeoutSeconds int, numMessages int) (ccEv
 		t.registration = nil
 	}()
 	if timeoutSeconds == 0 {
-		timeoutSeconds = t.vmefc.EventTimeoutSeconds()
+		timeoutSeconds = t.fabClient.EventTimeoutSeconds()
 	}
 	numMessagesReceived := 0
 	log.Debugf("====== blocking for up to %d seconds to wait for chaincode notification %s", timeoutSeconds, t.eventID)
@@ -133,7 +133,7 @@ func (t *EventListenerImpl) Close() {
 			t.chClient.UnregisterChaincodeEvent(t.registration)
 			t.registration = nil
 		}
-		t.vmefc.CloseChannelClient(t.chClient)
+		t.fabClient.CloseChannelClient(t.chClient)
 		t.chClient = nil
 	}
 }
