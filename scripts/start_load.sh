@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
 #
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-# http:#www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright SecureKey Technologies Inc. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 
 #
@@ -49,7 +35,7 @@ fi
 tmp_request_file=/tmp/marbles_request_$$.json
 
 cat <<END_REQUEST > $tmp_request_file
-    {"concurrency":$concurrency, "iterations":$iterations, "clearMarbles":false, "extraDataLength":$extraDataLength}
+    {"concurrency":$concurrency, "iterations":$iterations, "clearMarbles":true, "extraDataLength":$extraDataLength}
 END_REQUEST
 
 echo $(date) start new test ...
@@ -74,13 +60,6 @@ for owner_idx in $(seq 1 10) ; do
         echo
     fi
 done
-
-
-# clear marbles first
-echo
-echo clearing all existing marbles in system
-curl -X POST ${servers[0]}/clear_marbles
-echo
 
 
 # initiate batch runs
@@ -151,19 +130,9 @@ done
 
 
 #
-# complete - clean up temp files and marbles
+# complete - clean up temp files
 #
-
 rm -f $tmp_request_file
-
-#
-# clear marbles from system
-echo
-echo
-echo All done, clearing all existing marbles in system ...
-curl -s -X POST ${servers[0]}/clear_marbles >/dev/null 2>&1 &
-echo
-echo
 
 
 #

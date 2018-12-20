@@ -396,3 +396,42 @@ func clear_marbles(stub shim.ChaincodeStubInterface, args []string) pb.Response 
 	fmt.Println("- end clear_marbles - found: %d, deleted: %d", len(mIDs))
 	return shim.Success([]byte(fmt.Sprintf(`{"found": %d, "deleted": %d}`, len(mIDs), delCount)))
 }
+
+// ============================================================================================================================
+// delete_marble_noauth() - delete a marble without checking auth company
+//
+// Inputs - Array of strings
+//      0
+//     id
+// "m999999999"
+// ============================================================================================================================
+func delete_marble_noauth(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	fmt.Println("starting delete_marble_noauth")
+
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	// input sanitation
+	err := sanitize_arguments(args)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	id := args[0]
+
+	// get the marble
+	if _, err = get_marble(stub, id); err != nil {
+		fmt.Println("Failed to find marble by id " + id)
+		return shim.Error(err.Error())
+	}
+
+	// remove the marble
+	err = stub.DelState(id) //remove the key from chaincode state
+	if err != nil {
+		return shim.Error("Failed to delete state")
+	}
+
+	fmt.Println("- end delete_marble_noauth")
+	return shim.Success(nil)
+}

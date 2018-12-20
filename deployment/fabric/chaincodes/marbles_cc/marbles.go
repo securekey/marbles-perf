@@ -170,6 +170,8 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return disable_owner(stub, args)
 	} else if function == "clear_marbles" { //remove all marbles
 		return clear_marbles(stub, args)
+	} else if function == "delete_marble_noauth" { //delete a marble without checking auth company
+		return delete_marble_noauth(stub, args)
 	}
 
 	// error out

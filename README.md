@@ -17,9 +17,16 @@ make docker
 Follow these steps to set up a complete environment for testing locally.
 
 ## Start Fabric Network
-Use commands below to spin up a Hyperledger Fabric network with 3 Organizations with a total of 9 peers with Marbles chancode deployed.
+Use commands below to spin up a Hyperledger Fabric network with 3 organizations with a total of 9 peers.  Marbles chancode is deployed with endorsement policy that requires any 2 the 3 organizations.
 
 ```
+# set up your local GOPATH
+# build scripts expect marbles-perf project located at ${GOPATH}/src/github.com/marbles-perf
+
+# change to suit to your local environment
+export GOPATH=${HOME}/go
+
+# stop all running containers and start up fabric network
 docker stop $(docker ps -q) && \
 make fabric-up
 ```
@@ -80,7 +87,7 @@ The meanings of the request JSON attributes are:
 |concurrency|The number of concurrent workers|
 |iterations|The number of transfers to be completed in each worker|
 |delaySeconds|The number of seconds to wait between iterations|
-|clearMarbles|Boolean indicating whether existing marbles should be deleted before the test starts (You should not set this to true, if you're initiating a batch_run on multiple marbles-perf servers at the same time)|
+|clearMarbles|Boolean indicating whether marbles created during this batch run should be deleted at the completion of the process|
 |extraDataLength|Size of additional data to be added to each marble. This is provided to observe the effect of larger transactions on the ledger. Random data will be generated and added to each marble at create time. Subsequent transfers store the marble state so will also use the increased size.|
 
 
@@ -104,7 +111,7 @@ A response before the completion of the performance run looks like below:
 HTTP Status: 404
 Response Body:
 {
-	"error": "Batch run status not yet avaialble (not complete)"
+	"error": "Batch run status not yet available (not complete)"
 }
 ```
 

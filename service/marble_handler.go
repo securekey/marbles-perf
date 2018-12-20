@@ -1,21 +1,8 @@
-//
-// Licensed to the Apache Software Foundation (ASF) under one
-// or more contributor license agreements.  See the NOTICE file
-// distributed with this work for additional information
-// regarding copyright ownership.  The ASF licenses this file
-// to you under the Apache License, Version 2.0 (the
-// "License"); you may not use this file except in compliance
-// with the License.  You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
-//
+/*
+Copyright SecureKey Technologies Inc. All Rights Reserved.
+SPDX-License-Identifier: Apache-2.0
+*/
+
 package main
 
 import (
@@ -147,6 +134,46 @@ func doCreateMarble(marble api.Marble) (resp api.Response, err error) {
 	// optional additonal data
 	if marble.AdditionalData != "" {
 		args = append(args, marble.AdditionalData)
+	}
+
+	data, ccErr := fc.InvokeCC(ConsortiumChannelID, MarblesCC, args, nil)
+	if ccErr != nil {
+		err = fmt.Errorf("cc invoke failed: %s: %v", err, args)
+		return
+	}
+
+	resp = api.Response{
+		Id:   id,
+		TxId: data.FabricTxnID,
+	}
+	return
+}
+
+// deleteMarbleNoAuth force deletes a marble without checking auth company
+//
+func deleteMarbleNoAuth(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		writeErrorResponse(w, http.StatusBadRequest, "id not provided")
+		return
+	}
+
+	response, err := doDeleteMarbleNoAuth(id)
+	if err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, response)
+}
+
+// doDeleteMarbleNoAuth deletes a marble without checking auth company
+//
+func doDeleteMarbleNoAuth(id string) (resp api.Response, err error) {
+
+	args := []string{
+		"delete_marble_noauth",
+		id,
 	}
 
 	data, ccErr := fc.InvokeCC(ConsortiumChannelID, MarblesCC, args, nil)
