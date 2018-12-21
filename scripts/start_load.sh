@@ -144,8 +144,8 @@ for result in "${batch_results[@]}" ; do
     echo $result
     echo
     if [ $(echo ${result} | grep -c totalSuccesses) -gt 0 ] ; then
-            let successes=$(echo ${result} | tr ',' '\n' | awk -v FS=: '/totalSuccesses/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
-            let successSecs=$(echo ${result} | tr ',' '\n' | awk -v FS=: '/totalSuccessSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
+            let successes=$(echo ${result} | tr '}' '\n' | tr ',' '\n' | awk -v FS=: '/totalSuccesses/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
+            let successSecs=$(echo ${result} | tr '}' '\n' | tr ',' '\n' | awk -v FS=: '/totalSuccessSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' )
             let transfer_seconds+=$successSecs
             let transfer_count+=$successes
     fi
@@ -161,8 +161,8 @@ echo
 if [ $transfer_count -gt 0 ] ; then
    echo    Combined average time in seconds per transfer: $( echo "scale=3; $transfer_seconds/$transfer_count" | bc ) 
    echo
-   min_transfer_time=$( echo ${batch_results[@]} | tr ',' '\n' | awk -v FS=: '/minTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | head -1)
-   max_transfer_time=$( echo ${batch_results[@]} | tr ',' '\n' | awk -v FS=: '/maxTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | tail -1)
+   min_transfer_time=$( echo ${batch_results[@]} | tr '}' '\n' | tr ',' '\n' | awk -v FS=: '/minTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | head -1)
+   max_transfer_time=$( echo ${batch_results[@]} | tr '}' '\n' | tr ',' '\n' | awk -v FS=: '/maxTransferSeconds/{gsub(" ","",$2); gsub("}","",$2); print $2}' | sort -n | tail -1)
    echo min transfer time in seconds: $min_transfer_time
    echo max transfer time in seconds: $max_transfer_time
    echo

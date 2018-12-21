@@ -17,7 +17,7 @@ make docker
 Follow these steps to set up a complete environment for testing locally.
 
 ## Start Fabric Network
-Use commands below to spin up a Hyperledger Fabric network with 3 organizations with a total of 9 peers.  Marbles chancode is deployed with endorsement policy that requires any 2 the 3 organizations.
+Use commands below to spin up a Hyperledger Fabric network with 3 organizations with a total of 9 peers.  Marbles chancode is deployed with endorsement policy that requires any 2 of the 3 organizations.
 
 ```
 # set up your local GOPATH

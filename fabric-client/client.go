@@ -356,7 +356,7 @@ func (t *fabClient) InvokeCC(channelID string, chainCodeID string, args []string
 
 	resp, err := chClient.Execute(request, channel.WithRetry(t.invokeRetryOpts))
 	if err != nil {
-		return nil, fmt.Errorf("fabClient invokeCC failed: %v", err)
+		return nil, fmt.Errorf("fabClient invokeCC failed for %v: %v", args, err)
 	}
 
 	return t.extractCCResponse(&resp)

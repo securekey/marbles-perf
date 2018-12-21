@@ -96,14 +96,6 @@ func (tg *TransfersGenerator) initializeState() error {
 		return fmt.Errorf("failed to createOwners: %s", err)
 	}
 
-	if tg.request.ClearMarbles {
-		resp, err := doClearMarbles()
-		if err != nil {
-			logger.Warningf("failed to clear marbles from ledger: %s", err)
-		} else {
-			logger.Infof("removed existng marbles - found: %d, removed: %d", resp.Found, resp.TxId)
-		}
-	}
 	return nil
 }
 
@@ -221,7 +213,7 @@ func (w *MarbleWorker) startWorker() {
 			prevOwner = newOwner
 		} else {
 			w.perfData.failures++
-			logger.Debugf("Error transferring marble: Worker %d, Iteration %d: Transfer marble %s from %s to %s: %s", w.id, t, marble.Id, prevOwner.Username, newOwner.Username, resp.Error)
+			logger.Infof("Error transferring marble: Worker %d, Iteration %d: Transfer marble %s from %s to %s: %s", w.id, t, marble.Id, prevOwner.Username, newOwner.Username, resp.Error)
 		}
 	}
 
