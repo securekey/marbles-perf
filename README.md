@@ -21,7 +21,7 @@ Use commands below to spin up a Hyperledger Fabric network with 3 organizations 
 
 ```
 # set up your local GOPATH
-# build scripts expect marbles-perf project located at ${GOPATH}/src/github.com/marbles-perf
+# build scripts expect marbles-perf project located at ${GOPATH}/src/github.com/securekey/marbles-perf
 
 # change to suit to your local environment
 export GOPATH=${HOME}/go
